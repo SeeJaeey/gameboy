@@ -1,28 +1,118 @@
 // Reference: https://gbdev.io/pandocs/CPU_Instruction_Set.html
+
+// TODO: from opcode für alle enums
+
 pub enum R8 {
     B, C, D, E, H, L,
     HLIndirect, // memory[HL]
     A,
 }
 
+impl R8 {
+    pub fn from_bits(bits: u8) -> Self {
+        match bits & 0b111 {
+            0 => R8::B,
+            1 => R8::C,
+            2 => R8::D,
+            3 => R8::E,
+            4 => R8::H,
+            5 => R8::L,
+            6 => R8::HLIndirect,
+            7 => R8::A,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn dst_from_opcode(byte: u8) -> Self {
+        Self::from_bits(byte >> 3)
+    }
+
+    pub fn src_from_opcode(byte: u8) -> Self {
+        Self::from_bits(byte)
+    }
+}
+
 pub enum R16 {
     Bc, De, Hl, Sp,
+}
+
+impl R16 {
+    pub fn from_bits(bits: u8) -> Self {
+        match bits & 0b11 {
+            0 => R16::Bc,
+            1 => R16::De,
+            2 => R16::Hl,
+            3 => R16::Sp,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn from_opcode(byte: u8) -> Self {
+        Self::from_bits(byte >> 4)
+    }
 }
 
 pub enum R16Stk {
     Bc, De, Hl, Af,
 }
 
+impl R16Stk {
+    pub fn from_bits(bits: u8) -> Self {
+        match bits & 0b11 {
+            0 => R16Stk::Bc,
+            1 => R16Stk::De,
+            2 => R16Stk::Hl,
+            3 => R16Stk::Af,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn from_opcode(byte: u8) -> Self {
+        Self::from_bits(byte >> 4)
+    }
+}
+
 pub enum R16Mem {
     Bc, De, HlInc, HlDec,
+}
+
+impl R16Mem {
+    pub fn from_bits(bits: u8) -> Self {
+        match bits & 0b11 {
+            0 => R16Mem::Bc,
+            1 => R16Mem::De,
+            2 => R16Mem::HlInc,
+            3 => R16Mem::HlDec,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn from_opcode(byte: u8) -> Self {
+        Self::from_bits(byte >> 4)
+    }
 }
 
 pub enum Cond {
     Nz, Z, Nc, C,
 }
 
-pub enum Instruction {
+impl Cond {
+    pub fn from_bits(bits: u8) -> Self {
+        match bits & 0b11 {
+            0 => Cond::Nz,
+            1 => Cond::Z,
+            2 => Cond::Nc,
+            3 => Cond::C,
+            _ => unreachable!(),
+        }
+    }
 
+    pub fn from_opcode(byte: u8) -> Self {
+        Self::from_bits(byte >> 3)
+    }
+}
+
+pub enum Instruction {
     /////////////
     // BLOCK 0 // --> 63 instructions
     /////////////
@@ -104,7 +194,7 @@ pub enum Instruction {
     JpHl,
     CallCondImm16(Cond), // Group of 4
     CallImm16,
-    RstRgt3(u8), // Group of 8, u8 is target
+    RstTgt3(u8), // Group of 8, u8 is target
 
     // 8
     PopR16stk(R16Stk), // Group of 4
@@ -130,80 +220,43 @@ pub enum Instruction {
     Di,
     Ei,
 
-    // TODO: encode instructions that hard lock the CPU as a rust panic
-
     ////////////////
     // $CB prefix // --> 256 instructions
     ////////////////
 
-    // TODO
-    
+    // 64
+    RlcR8(R8), // Group of 4
+    RrcR8(R8), // Group of 4
+    RlR8(R8), // Group of 4
+    RrR8(R8), // Group of 4
+    SlaR8(R8), // Group of 4
+    SraR8(R8), // Group of 4
+    SwapR8(R8), // Group of 4
+    SrlR8(R8), // Group of 4
+
+    // 192
+    BitB3R8(u8, R8), // Group of 64, u8 is for bit index
+    ResB3R8(u8, R8), // Group of 64, u8 is for bit index
+    SetB3R8(u8, R8), // Group of 64, u8 is for bit index
 }
 
 pub fn decode(opcode: u8) -> Instruction {
-    let tgt3 = (opcode & 0b0011_1000) << 3;
-
     match opcode {
         0x00 => Instruction::Nop,
 
-        0x01 => Instruction::LdR16Imm16(R16::Bc),
-        0x11 => Instruction::LdR16Imm16(R16::De),
-        0x21 => Instruction::LdR16Imm16(R16::Hl),
-        0x31 => Instruction::LdR16Imm16(R16::Sp),
-
-        0x02 => Instruction::LdR16memA(R16Mem::Bc),
-        0x12 => Instruction::LdR16memA(R16Mem::De),
-        0x22 => Instruction::LdR16memA(R16Mem::HlInc),
-        0x32 => Instruction::LdR16memA(R16Mem::HlDec),
-
-        0x0A => Instruction::LdAR16mem(R16Mem::Bc),
-        0x1A => Instruction::LdAR16mem(R16Mem::De),
-        0x2A => Instruction::LdAR16mem(R16Mem::HlInc),
-        0x3A => Instruction::LdAR16mem(R16Mem::HlDec),
-
+        0x01 | 0x11 | 0x21 | 0x31 => Instruction::LdR16Imm16(R16::from_opcode(opcode)),
+        0x02 | 0x12 | 0x22 | 0x32 => Instruction::LdR16memA(R16Mem::from_opcode(opcode)),
+        0x0A | 0x1A | 0x2A | 0x3A => Instruction::LdAR16mem(R16Mem::from_opcode(opcode)),
         0x08 => Instruction::LdImm16Sp,
 
-        0x03 => Instruction::IncR16(R16::Bc),
-        0x13 => Instruction::IncR16(R16::De),
-        0x23 => Instruction::IncR16(R16::Hl),
-        0x33 => Instruction::IncR16(R16::Sp),
+        0x03 | 0x13 | 0x23 | 0x33 => Instruction::IncR16(R16::from_opcode(opcode)),
+        0x0B | 0x1B | 0x2B | 0x3B => Instruction::DecR16(R16::from_opcode(opcode)),
+        0x09 | 0x19 | 0x29 | 0x39 => Instruction::AddHlR16(R16::from_opcode(opcode)),
 
-        0x0B => Instruction::DecR16(R16::Bc),
-        0x1B => Instruction::DecR16(R16::De),
-        0x2B => Instruction::DecR16(R16::Hl),
-        0x3B => Instruction::DecR16(R16::Sp),
+        0x04 | 0x14 | 0x24 | 0x34 | 0x0C | 0x1C | 0x2C | 0x3C => Instruction::IncR8(R8::dst_from_opcode(opcode)),
+        0x05 | 0x15 | 0x25 | 0x35 | 0x0D | 0x1D | 0x2D | 0x3D => Instruction::DecR8(R8::dst_from_opcode(opcode)),
 
-        0x09 => Instruction::AddHlR16(R16::Bc),
-        0x19 => Instruction::AddHlR16(R16::De),
-        0x29 => Instruction::AddHlR16(R16::Hl),
-        0x39 => Instruction::AddHlR16(R16::Sp),
-
-        0x04 => Instruction::IncR8(R8::B),
-        0x14 => Instruction::IncR8(R8::D),
-        0x24 => Instruction::IncR8(R8::H),
-        0x34 => Instruction::IncR8(R8::HLIndirect),
-        0x0C => Instruction::IncR8(R8::C),
-        0x1C => Instruction::IncR8(R8::E),
-        0x2C => Instruction::IncR8(R8::L),
-        0x3C => Instruction::IncR8(R8::A),
-
-        0x05 => Instruction::DecR8(R8::B),
-        0x15 => Instruction::DecR8(R8::D),
-        0x25 => Instruction::DecR8(R8::H),
-        0x35 => Instruction::DecR8(R8::HLIndirect),
-        0x0D => Instruction::DecR8(R8::C),
-        0x1D => Instruction::DecR8(R8::E),
-        0x2D => Instruction::DecR8(R8::L),
-        0x3D => Instruction::DecR8(R8::A),
-
-        0x06 => Instruction::LdR8Imm8(R8::B),
-        0x16 => Instruction::LdR8Imm8(R8::D),
-        0x26 => Instruction::LdR8Imm8(R8::H),
-        0x36 => Instruction::LdR8Imm8(R8::HLIndirect),
-        0x0E => Instruction::LdR8Imm8(R8::C),
-        0x1E => Instruction::LdR8Imm8(R8::E),
-        0x2E => Instruction::LdR8Imm8(R8::L),
-        0x3E => Instruction::LdR8Imm8(R8::A),
+        0x06 | 0x16 | 0x26 | 0x36 | 0x0E | 0x1E | 0x2E | 0x3E => Instruction::LdR8Imm8(R8::dst_from_opcode(opcode)),
 
         0x07 => Instruction::Rlca,
         0x0F => Instruction::Rrca,
@@ -215,90 +268,80 @@ pub fn decode(opcode: u8) -> Instruction {
         0x3F => Instruction::Ccf,
 
         0x18 => Instruction::JrImm8,
-
-        0x20 => Instruction::JrCondImm8(Cond::Nz),
-        0x30 => Instruction::JrCondImm8(Cond::Nc),
-        0x28 => Instruction::JrCondImm8(Cond::Z),
-        0x38 => Instruction::JrCondImm8(Cond::C),
+        0x20 | 0x30 | 0x28 | 0x38 => Instruction::JrCondImm8(Cond::from_opcode(opcode)),
 
         0x10 => Instruction::Stop,
 
-        0x40 => Instruction::LdR8R8(R8::B, R8::B),
-        0x41 => Instruction::LdR8R8(R8::B, R8::C),
-        0x42 => Instruction::LdR8R8(R8::B, R8::D),
-        0x43 => Instruction::LdR8R8(R8::B, R8::E),
-        0x44 => Instruction::LdR8R8(R8::B, R8::H),
-        0x45 => Instruction::LdR8R8(R8::B, R8::L),
-        0x46 => Instruction::LdR8R8(R8::B, R8::HLIndirect),
-        0x47 => Instruction::LdR8R8(R8::B, R8::A),
-        0x48 => Instruction::LdR8R8(R8::C, R8::B),
-        0x49 => Instruction::LdR8R8(R8::C, R8::C),
-        0x4A => Instruction::LdR8R8(R8::C, R8::D),
-        0x4B => Instruction::LdR8R8(R8::C, R8::E),
-        0x4C => Instruction::LdR8R8(R8::C, R8::H),
-        0x4D => Instruction::LdR8R8(R8::C, R8::L),
-        0x4E => Instruction::LdR8R8(R8::C, R8::HLIndirect),
-        0x4F => Instruction::LdR8R8(R8::C, R8::A),
+        0x40..=0x75 | 0x77..=0x7F => Instruction::LdR8R8(R8::dst_from_opcode(opcode), R8::src_from_opcode(opcode)),
 
-        0x50 => Instruction::LdR8R8(R8::D, R8::B),
-        0x51 => Instruction::LdR8R8(R8::D, R8::C),
-        0x52 => Instruction::LdR8R8(R8::D, R8::D),
-        0x53 => Instruction::LdR8R8(R8::D, R8::E),
-        0x54 => Instruction::LdR8R8(R8::D, R8::H),
-        0x55 => Instruction::LdR8R8(R8::D, R8::L),
-        0x56 => Instruction::LdR8R8(R8::D, R8::HLIndirect),
-        0x57 => Instruction::LdR8R8(R8::D, R8::A),
-        0x58 => Instruction::LdR8R8(R8::E, R8::B),
-        0x59 => Instruction::LdR8R8(R8::E, R8::C),
-        0x5A => Instruction::LdR8R8(R8::E, R8::D),
-        0x5B => Instruction::LdR8R8(R8::E, R8::E),
-        0x5C => Instruction::LdR8R8(R8::E, R8::H),
-        0x5D => Instruction::LdR8R8(R8::E, R8::L),
-        0x5E => Instruction::LdR8R8(R8::E, R8::HLIndirect),
-        0x5F => Instruction::LdR8R8(R8::E, R8::A),
-
-        0x60 => Instruction::LdR8R8(R8::H, R8::B),
-        0x61 => Instruction::LdR8R8(R8::H, R8::C),
-        0x62 => Instruction::LdR8R8(R8::H, R8::D),
-        0x63 => Instruction::LdR8R8(R8::H, R8::E),
-        0x64 => Instruction::LdR8R8(R8::H, R8::H),
-        0x65 => Instruction::LdR8R8(R8::H, R8::L),
-        0x66 => Instruction::LdR8R8(R8::H, R8::HLIndirect),
-        0x67 => Instruction::LdR8R8(R8::H, R8::A),
-        0x68 => Instruction::LdR8R8(R8::L, R8::B),
-        0x69 => Instruction::LdR8R8(R8::L, R8::C),
-        0x6A => Instruction::LdR8R8(R8::L, R8::D),
-        0x6B => Instruction::LdR8R8(R8::L, R8::E),
-        0x6C => Instruction::LdR8R8(R8::L, R8::H),
-        0x6D => Instruction::LdR8R8(R8::L, R8::L),
-        0x6E => Instruction::LdR8R8(R8::L, R8::HLIndirect),
-        0x6F => Instruction::LdR8R8(R8::L, R8::A),
-
-        0x70 => Instruction::LdR8R8(R8::HLIndirect, R8::B),
-        0x71 => Instruction::LdR8R8(R8::HLIndirect, R8::C),
-        0x72 => Instruction::LdR8R8(R8::HLIndirect, R8::D),
-        0x73 => Instruction::LdR8R8(R8::HLIndirect, R8::E),
-        0x74 => Instruction::LdR8R8(R8::HLIndirect, R8::H),
-        0x75 => Instruction::LdR8R8(R8::HLIndirect, R8::L),
         0x76 => Instruction::Halt,
-        0x77 => Instruction::LdR8R8(R8::HLIndirect, R8::A),
-        0x78 => Instruction::LdR8R8(R8::A, R8::B),
-        0x79 => Instruction::LdR8R8(R8::A, R8::C),
-        0x7A => Instruction::LdR8R8(R8::A, R8::D),
-        0x7B => Instruction::LdR8R8(R8::A, R8::E),
-        0x7C => Instruction::LdR8R8(R8::A, R8::H),
-        0x7D => Instruction::LdR8R8(R8::A, R8::L),
-        0x7E => Instruction::LdR8R8(R8::A, R8::HLIndirect),
-        0x7F => Instruction::LdR8R8(R8::A, R8::A),
 
+        0x80..=0x87 => Instruction::AddAR8(R8::src_from_opcode(opcode)),
+        0x88..=0x8F => Instruction::AdcAR8(R8::src_from_opcode(opcode)),
+        0x90..=0x97 => Instruction::SubAR8(R8::src_from_opcode(opcode)),
+        0x98..=0x9F => Instruction::SbcAR8(R8::src_from_opcode(opcode)),
+        0xA0..=0xA7 => Instruction::AndAR8(R8::src_from_opcode(opcode)),
+        0xA8..=0xAF => Instruction::XorAR8(R8::src_from_opcode(opcode)),
+        0xB0..=0xB7 => Instruction::OrAR8(R8::src_from_opcode(opcode)),
+        0xB8..=0xBF => Instruction::CpAR8(R8::src_from_opcode(opcode)),
 
+        0xC6 => Instruction::AddAImm8,
+        0xCE => Instruction::AdcAImm8,
+        0xD6 => Instruction::SubAImm8,
+        0xDE => Instruction::SbcAImm8,
+        0xE6 => Instruction::AndAImm8,
+        0xEE => Instruction::XorAImm8,
+        0xF6 => Instruction::OrAImm8,
+        0xFE => Instruction::CpAImm8,
 
-        _ => Instruction::Nop
+        0xC0 | 0xD0 | 0xC8 | 0xD8 => Instruction::RetCond(Cond::from_opcode(opcode)),
+        0xC9 => Instruction::Ret,
+        0xD9 => Instruction::Reti,
+        0xC2 | 0xD2 | 0xCA | 0xDA => Instruction::JpCondImm16(Cond::from_opcode(opcode)),
+        0xC3 => Instruction::JpImm16,
+        0xE9 => Instruction::JpHl,
+        0xC4 | 0xD4 | 0xCC | 0xDC => Instruction::CallCondImm16(Cond::from_opcode(opcode)),
+        0xCD => Instruction::CallImm16,
+        0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => Instruction::RstTgt3((opcode & 0b0011_1000) << 3), // TODO: divide by 8 or not?
+
+        0xC1 | 0xD1 | 0xE1 | 0xF1 => Instruction::PopR16stk(R16Stk::from_opcode(opcode)),
+        0xC5 | 0xD5 | 0xE5 | 0xF5 => Instruction::PushR16stk(R16Stk::from_opcode(opcode)),
+
+        0xCB => Instruction::Prefix,
+
+        0xE0 => Instruction::LdhImm8A,
+        0xF0 => Instruction::LdhAImm8,
+        0xE2 => Instruction::LdhCA,
+        0xF2 => Instruction::LdhAC,
+        0xEA => Instruction::LdImm16A,
+        0xFA => Instruction::LdAImm16,
+
+        0xE8 => Instruction::AddSpImm8,
+        0xF8 => Instruction::LdHlSpPlusImm8,
+        0xF9 => Instruction::LdSpHl,
+
+        0xF3 => Instruction::Di,
+        0xFB => Instruction::Ei,
+
+        0xD3 | 0xDB | 0xDD | 0xE3 | 0xE4 | 0xEB | 0xEC | 0xED | 0xF4 | 0xFC | 0xFD => panic!("Encountered invalid opcode which hard-locked the CPU: {}", opcode),
     }
 }
 
 pub fn decode_cb_prefix(opcode: u8) -> Instruction {
+    let bit = (opcode & 0b0011_1000) << 3; // TODO: divide by 8 or not?
+
     match opcode {
-        _ => Instruction::Nop
+        0x00..=0x07 => Instruction::RlcR8(R8::src_from_opcode(opcode)),
+        0x08..=0x0F => Instruction::RrcR8(R8::src_from_opcode(opcode)),
+        0x10..=0x17 => Instruction::RlR8(R8::src_from_opcode(opcode)),
+        0x18..=0x1F => Instruction::RrR8(R8::src_from_opcode(opcode)),
+        0x20..=0x27 => Instruction::SlaR8(R8::src_from_opcode(opcode)),
+        0x28..=0x2F => Instruction::SraR8(R8::src_from_opcode(opcode)),
+        0x30..=0x37 => Instruction::SwapR8(R8::src_from_opcode(opcode)),
+        0x38..=0x3F => Instruction::SrlR8(R8::src_from_opcode(opcode)),
+
+        0x40..=0x7F => Instruction::BitB3R8(bit, R8::src_from_opcode(opcode)),
+        0x80..=0xBF => Instruction::ResB3R8(bit, R8::src_from_opcode(opcode)),
+        0xC0..=0xFF => Instruction::ResB3R8(bit, R8::src_from_opcode(opcode)),
     }
 }
