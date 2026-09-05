@@ -1,9 +1,12 @@
 // Reference: https://gbdev.io/pandocs/CPU_Instruction_Set.html
-
-// TODO: from opcode für alle enums
-
+#[derive(Debug, PartialEq)]
 pub enum R8 {
-    B, C, D, E, H, L,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
     HLIndirect, // memory[HL]
     A,
 }
@@ -32,8 +35,12 @@ impl R8 {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum R16 {
-    Bc, De, Hl, Sp,
+    Bc,
+    De,
+    Hl,
+    Sp,
 }
 
 impl R16 {
@@ -52,8 +59,12 @@ impl R16 {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum R16Stk {
-    Bc, De, Hl, Af,
+    Bc,
+    De,
+    Hl,
+    Af,
 }
 
 impl R16Stk {
@@ -72,8 +83,12 @@ impl R16Stk {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum R16Mem {
-    Bc, De, HlInc, HlDec,
+    Bc,
+    De,
+    HlInc,
+    HlDec,
 }
 
 impl R16Mem {
@@ -92,8 +107,12 @@ impl R16Mem {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Cond {
-    Nz, Z, Nc, C,
+    Nz,
+    Z,
+    Nc,
+    C,
 }
 
 impl Cond {
@@ -112,6 +131,7 @@ impl Cond {
     }
 }
 
+#[derive(Debug)]
 pub enum Instruction {
     /////////////
     // BLOCK 0 // --> 63 instructions
@@ -120,13 +140,13 @@ pub enum Instruction {
     // 1
     Nop,
     // 12
-    LdR16Imm16(R16), // Group of 4
+    LdR16Imm16(R16),   // Group of 4
     LdR16memA(R16Mem), // Group of 4,
     LdAR16mem(R16Mem), // Group of 4,
     LdImm16Sp,
     // 12
-    IncR16(R16), // Group of 4
-    DecR16(R16), // Group of 4
+    IncR16(R16),   // Group of 4
+    DecR16(R16),   // Group of 4
     AddHlR16(R16), // Group of 4
     // 16
     IncR8(R8), // Group of 8
@@ -168,8 +188,8 @@ pub enum Instruction {
     SbcAR8(R8), // Group of 8
     AndAR8(R8), // Group of 8
     XorAR8(R8), // Group of 8
-    OrAR8(R8), // Group of 8
-    CpAR8(R8), // Group of 8
+    OrAR8(R8),  // Group of 8
+    CpAR8(R8),  // Group of 8
 
     /////////////
     // BLOCK 3 // --> 53 instructions
@@ -197,7 +217,7 @@ pub enum Instruction {
     RstTgt3(u8), // Group of 8, u8 is target
 
     // 8
-    PopR16stk(R16Stk), // Group of 4
+    PopR16stk(R16Stk),  // Group of 4
     PushR16stk(R16Stk), // Group of 4
 
     // 1
@@ -225,14 +245,14 @@ pub enum Instruction {
     ////////////////
 
     // 64
-    RlcR8(R8), // Group of 4
-    RrcR8(R8), // Group of 4
-    RlR8(R8), // Group of 4
-    RrR8(R8), // Group of 4
-    SlaR8(R8), // Group of 4
-    SraR8(R8), // Group of 4
+    RlcR8(R8),  // Group of 4
+    RrcR8(R8),  // Group of 4
+    RlR8(R8),   // Group of 4
+    RrR8(R8),   // Group of 4
+    SlaR8(R8),  // Group of 4
+    SraR8(R8),  // Group of 4
     SwapR8(R8), // Group of 4
-    SrlR8(R8), // Group of 4
+    SrlR8(R8),  // Group of 4
 
     // 192
     BitB3R8(u8, R8), // Group of 64, u8 is for bit index
@@ -253,10 +273,16 @@ pub fn decode(opcode: u8) -> Instruction {
         0x0B | 0x1B | 0x2B | 0x3B => Instruction::DecR16(R16::from_opcode(opcode)),
         0x09 | 0x19 | 0x29 | 0x39 => Instruction::AddHlR16(R16::from_opcode(opcode)),
 
-        0x04 | 0x14 | 0x24 | 0x34 | 0x0C | 0x1C | 0x2C | 0x3C => Instruction::IncR8(R8::dst_from_opcode(opcode)),
-        0x05 | 0x15 | 0x25 | 0x35 | 0x0D | 0x1D | 0x2D | 0x3D => Instruction::DecR8(R8::dst_from_opcode(opcode)),
+        0x04 | 0x14 | 0x24 | 0x34 | 0x0C | 0x1C | 0x2C | 0x3C => {
+            Instruction::IncR8(R8::dst_from_opcode(opcode))
+        }
+        0x05 | 0x15 | 0x25 | 0x35 | 0x0D | 0x1D | 0x2D | 0x3D => {
+            Instruction::DecR8(R8::dst_from_opcode(opcode))
+        }
 
-        0x06 | 0x16 | 0x26 | 0x36 | 0x0E | 0x1E | 0x2E | 0x3E => Instruction::LdR8Imm8(R8::dst_from_opcode(opcode)),
+        0x06 | 0x16 | 0x26 | 0x36 | 0x0E | 0x1E | 0x2E | 0x3E => {
+            Instruction::LdR8Imm8(R8::dst_from_opcode(opcode))
+        }
 
         0x07 => Instruction::Rlca,
         0x0F => Instruction::Rrca,
@@ -272,7 +298,9 @@ pub fn decode(opcode: u8) -> Instruction {
 
         0x10 => Instruction::Stop,
 
-        0x40..=0x75 | 0x77..=0x7F => Instruction::LdR8R8(R8::dst_from_opcode(opcode), R8::src_from_opcode(opcode)),
+        0x40..=0x75 | 0x77..=0x7F => {
+            Instruction::LdR8R8(R8::dst_from_opcode(opcode), R8::src_from_opcode(opcode))
+        }
 
         0x76 => Instruction::Halt,
 
@@ -302,7 +330,9 @@ pub fn decode(opcode: u8) -> Instruction {
         0xE9 => Instruction::JpHl,
         0xC4 | 0xD4 | 0xCC | 0xDC => Instruction::CallCondImm16(Cond::from_opcode(opcode)),
         0xCD => Instruction::CallImm16,
-        0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => Instruction::RstTgt3((opcode & 0b0011_1000) << 3), // TODO: divide by 8 or not?
+        0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => {
+            Instruction::RstTgt3(opcode & 0b0011_1000)
+        } // TODO: divide by 8 or not?
 
         0xC1 | 0xD1 | 0xE1 | 0xF1 => Instruction::PopR16stk(R16Stk::from_opcode(opcode)),
         0xC5 | 0xD5 | 0xE5 | 0xF5 => Instruction::PushR16stk(R16Stk::from_opcode(opcode)),
@@ -323,12 +353,15 @@ pub fn decode(opcode: u8) -> Instruction {
         0xF3 => Instruction::Di,
         0xFB => Instruction::Ei,
 
-        0xD3 | 0xDB | 0xDD | 0xE3 | 0xE4 | 0xEB | 0xEC | 0xED | 0xF4 | 0xFC | 0xFD => panic!("Encountered invalid opcode which hard-locked the CPU: {}", opcode),
+        0xD3 | 0xDB | 0xDD | 0xE3 | 0xE4 | 0xEB | 0xEC | 0xED | 0xF4 | 0xFC | 0xFD => panic!(
+            "Encountered invalid opcode which hard-locked the CPU: {}",
+            opcode
+        ),
     }
 }
 
 pub fn decode_cb_prefix(opcode: u8) -> Instruction {
-    let bit = (opcode & 0b0011_1000) << 3; // TODO: divide by 8 or not?
+    let b3 = (opcode & 0b0011_1000) >> 3; // TODO: divide by 8 or not?
 
     match opcode {
         0x00..=0x07 => Instruction::RlcR8(R8::src_from_opcode(opcode)),
@@ -340,8 +373,8 @@ pub fn decode_cb_prefix(opcode: u8) -> Instruction {
         0x30..=0x37 => Instruction::SwapR8(R8::src_from_opcode(opcode)),
         0x38..=0x3F => Instruction::SrlR8(R8::src_from_opcode(opcode)),
 
-        0x40..=0x7F => Instruction::BitB3R8(bit, R8::src_from_opcode(opcode)),
-        0x80..=0xBF => Instruction::ResB3R8(bit, R8::src_from_opcode(opcode)),
-        0xC0..=0xFF => Instruction::ResB3R8(bit, R8::src_from_opcode(opcode)),
+        0x40..=0x7F => Instruction::BitB3R8(b3, R8::src_from_opcode(opcode)),
+        0x80..=0xBF => Instruction::ResB3R8(b3, R8::src_from_opcode(opcode)),
+        0xC0..=0xFF => Instruction::SetB3R8(b3, R8::src_from_opcode(opcode)),
     }
 }

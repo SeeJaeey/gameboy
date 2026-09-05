@@ -1,6 +1,7 @@
 mod cpu;
 mod decode;
-mod execute;
+mod emulator;
+mod memory;
 
 fn main() {
     println!("Hello, world!");
