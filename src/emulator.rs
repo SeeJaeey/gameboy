@@ -12,7 +12,10 @@ impl Emulator {
     pub fn execute(&mut self, instruction: Instruction) -> u8 {
         match instruction {
             // TODO: implement execution block for each instruction
-            Instruction::Nop => 4,
+            Instruction::Nop => {
+                self.inc_pc(1);
+                4
+            }
 
             Instruction::LdR16Imm16(r16) => {
                 let imm16 = self.fetch_imm16();
@@ -46,7 +49,7 @@ impl Emulator {
                 let sp_lo = self.registers.sp.lo();
 
                 self.memory.set(imm16, sp_lo);
-                self.memory.set(imm16 + 1, sp_hi);
+                self.memory.set(imm16.wrapping_add(1), sp_hi);
 
                 self.inc_pc(3);
                 20
@@ -66,111 +69,69 @@ impl Emulator {
                 self.inc_pc(1);
                 8
             },
-            // TODO: Set flags
             Instruction::AddHlR16(r16) => {
                 let r16 = self.get_r16(r16).get();
                 let hl = self.registers.hl.get();
 
-                self.registers.hl.set(hl.wrapping_add(r16));
+                let result = hl.wrapping_add(r16);
+                let half_carry = ((hl & 0x0FFF) + (r16 & 0x0FFF)) > 0x0FFF;
+                let carry = (hl as u32 + r16 as u32) > 0xFFFF;
+
+                self.registers.hl.set(result);
+                self.registers.af.set_subtract(false);
+                self.registers.af.set_half_carry(half_carry);
+                self.registers.af.set_carry(carry);
 
                 self.inc_pc(1);
                 8
             },
 
             Instruction::IncR8(r8) => {
-                match r8 {
-                    R8::B => {
-                        let old_b = self.registers.bc.hi();
-                        self.registers.bc.inc_hi();
-                        let new_b = self.registers.bc.hi();
-            
-                        self.registers.af.set_zero(new_b == 0);
-                        self.registers.af.set_subtract(false);
-                        self.registers.af.set_half_carry((old_b & 0x0F) == 0x0F);
-                    }
-                    R8::C => {
-                        let old_c = self.registers.bc.lo();
-                        self.registers.bc.inc_lo();
-                        let new_c = self.registers.bc.lo();
-            
-                        self.registers.af.set_zero(new_c == 0);
-                        self.registers.af.set_subtract(false);
-                        self.registers.af.set_half_carry((old_c & 0x0F) == 0x0F);
-                    }
-                    R8::D => {
-                        let old_d = self.registers.de.hi();
-                        self.registers.de.inc_hi();
-                        let new_d = self.registers.de.hi();
-            
-                        self.registers.af.set_zero(new_d == 0);
-                        self.registers.af.set_subtract(false);
-                        self.registers.af.set_half_carry((old_d & 0x0F) == 0x0F);
-                    }
-                    R8::E => {
-                        let old_e = self.registers.de.lo();
-                        self.registers.de.inc_lo();
-                        let new_e = self.registers.de.lo();
-            
-                        self.registers.af.set_zero(new_e == 0);
-                        self.registers.af.set_subtract(false);
-                        self.registers.af.set_half_carry((old_e & 0x0F) == 0x0F);
-                    }
-                    R8::H => {
-                        let old_h = self.registers.hl.hi();
-                        self.registers.hl.inc_hi();
-                        let new_h = self.registers.hl.hi();
-            
-                        self.registers.af.set_zero(new_h == 0);
-                        self.registers.af.set_subtract(false);
-                        self.registers.af.set_half_carry((old_h & 0x0F) == 0x0F);
-                    }
-                    R8::L => {
-                        let old_l = self.registers.hl.lo();
-                        self.registers.hl.inc_lo();
-                        let new_l = self.registers.hl.lo();
-            
-                        self.registers.af.set_zero(new_l == 0);
-                        self.registers.af.set_subtract(false);
-                        self.registers.af.set_half_carry((old_l & 0x0F) == 0x0F);
-                    }
+                let old = match r8 {
+                    R8::B => self.registers.bc.hi(),
+                    R8::C => self.registers.bc.lo(),
+                    R8::D => self.registers.de.hi(),
+                    R8::E => self.registers.de.lo(),
+                    R8::H => self.registers.hl.hi(),
+                    R8::L => self.registers.hl.lo(),
+                    R8::A => self.registers.af.hi(),
                     R8::HLIndirect => {
                         let addr = self.registers.hl.get();
-                        let old = self.memory.get(addr);
-                        self.memory.inc(addr);
-                        let new = self.memory.get(addr);
+                        self.memory.get(addr)
+                    }
+                };
 
-                        self.registers.af.set_zero(new == 0);
-                        self.registers.af.set_subtract(false);
-                        self.registers.af.set_half_carry((old & 0x0F) == 0x0F);
-                    }
-                    R8::A => {
-                        let old_a = self.registers.af.hi();
-                        self.registers.af.inc_hi();
-                        let new_a = self.registers.af.hi();
-            
-                        self.registers.af.set_zero(new_a == 0);
-                        self.registers.af.set_subtract(false);
-                        self.registers.af.set_half_carry((old_a & 0x0F) == 0x0F);
-                    }
-                }
+                let new = old.wrapping_add(1);
+                self.set_r8(&r8, new);
+
+                self.registers.af.set_zero(new == 0);
+                self.registers.af.set_subtract(false);
+                self.registers.af.set_half_carry((old & 0x0F) == 0x0F);
 
                 self.inc_pc(1);
                 if r8 == R8::HLIndirect { 12 } else { 4 }
             },
             Instruction::DecR8(r8) => {
-                match r8 {
-                    R8::B => self.registers.bc.dec_hi(),
-                    R8::C => self.registers.bc.dec_lo(),
-                    R8::D => self.registers.de.dec_hi(),
-                    R8::E => self.registers.de.dec_lo(),
-                    R8::H => self.registers.hl.dec_hi(),
-                    R8::L => self.registers.hl.dec_lo(),
+                let old = match r8 {
+                    R8::B => self.registers.bc.hi(),
+                    R8::C => self.registers.bc.lo(),
+                    R8::D => self.registers.de.hi(),
+                    R8::E => self.registers.de.lo(),
+                    R8::H => self.registers.hl.hi(),
+                    R8::L => self.registers.hl.lo(),
+                    R8::A => self.registers.af.hi(),
                     R8::HLIndirect => {
                         let addr = self.registers.hl.get();
-                        self.memory.dec(addr);
+                        self.memory.get(addr)
                     }
-                    R8::A => self.registers.af.dec_hi(),
-                }
+                };
+
+                let new = old.wrapping_sub(1);
+                self.set_r8(&r8, new);
+
+                self.registers.af.set_zero(new == 0);
+                self.registers.af.set_subtract(true);
+                self.registers.af.set_half_carry((old & 0x0F) == 0);
 
                 self.inc_pc(1);
                 if r8 == R8::HLIndirect { 12 } else { 4 }
@@ -282,24 +243,21 @@ impl Emulator {
                 12
             },
             Instruction::JrCondImm8(cond) => {
-                let mut condition = false;
+                let condition = match cond {
+                    Cond::Nz => !self.registers.af.zero(),
+                    Cond::Z => self.registers.af.zero(),
+                    Cond::Nc => !self.registers.af.carry(),
+                    Cond::C => self.registers.af.carry(),
+                };
 
-                match cond {
-                    Cond::Nz => condition = self.registers.af.zero() == false,
-                    Cond::Z => condition = self.registers.af.zero() == true,
-                    Cond::Nc => condition = self.registers.af.carry() == false,
-                    Cond::C => condition = self.registers.af.carry() == true,
-                }
+                let imm8 = self.fetch_imm8() as i8;
+                self.inc_pc(2);
 
                 if condition {
-                    let imm8 = self.fetch_imm8() as i8;
-
-                    self.inc_pc(2);
                     let new_pc = self.registers.pc.get().wrapping_add_signed(imm8 as i16);
                     self.registers.pc.set(new_pc);
                     12
                 } else {
-                    self.inc_pc(2);
                     8
                 }
             },
@@ -312,42 +270,152 @@ impl Emulator {
 
 
             Instruction::LdR8R8(lr8, rr8) => {
+                let value = self.get_r8(&rr8);
+                self.set_r8(&lr8, value);
+
+                self.inc_pc(1);
                 if lr8 == R8::HLIndirect || rr8 == R8::HLIndirect { 8 } else { 4 }
             },
             // 1
             Instruction::Halt => {
+                // TODO
                 4
             },
 
 
 
             Instruction::AddAR8(r8) => {
+                let a = self.registers.af.hi();
+                let value = self.get_r8(&r8);
+
+                let result = a.wrapping_add(value);
+
+                self.registers.af.set_hi(result);
+                self.registers.af.set_zero(result == 0);
+                self.registers.af.set_subtract(false);
+                self.registers.af.set_half_carry(((a & 0x0F) + (value & 0x0F)) > 0x0F);
+                self.registers.af.set_carry(a as u16 + value as u16 > 0xFF);
+
+                self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
             },
             Instruction::AdcAR8(r8) => {
+                let a = self.registers.af.hi();
+                let value = self.get_r8(&r8);
+                let carry = self.registers.af.carry() as u8;
+
+                let result = a.wrapping_add(value).wrapping_add(carry);
+
+                self.registers.af.set_hi(result);
+                self.registers.af.set_zero(result == 0);
+                self.registers.af.set_subtract(false);
+                self.registers.af.set_half_carry(
+                    (a & 0x0F) + (value & 0x0F) + carry > 0x0F
+                );
+                self.registers.af.set_carry(
+                    a as u16 + value as u16 + carry as u16 > 0xFF
+                );
+
+                self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
             },
             Instruction::SubAR8(r8) => {
+                let a = self.registers.af.hi();
+                let value = self.get_r8(&r8);
+
+                let result = a.wrapping_sub(value);
+
+                self.registers.af.set_hi(result);
+                self.registers.af.set_zero(result == 0);
+                self.registers.af.set_subtract(true);
+                self.registers.af.set_half_carry((a & 0x0F) < (value & 0x0F));
+                self.registers.af.set_carry(a < value);
+
+                self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
             },
             Instruction::SbcAR8(r8) => {
+                let a = self.registers.af.hi();
+                let value = self.get_r8(&r8);
+                let carry = self.registers.af.carry() as u8;
+
+                let result = a.wrapping_sub(value).wrapping_sub(carry);
+
+                self.registers.af.set_hi(result);
+                self.registers.af.set_zero(result == 0);
+                self.registers.af.set_subtract(true);
+                self.registers.af.set_half_carry(
+                    (a & 0x0F) < (value & 0x0F) + carry
+                );
+                self.registers.af.set_carry(
+                    (a as u16) < (value as u16) + carry as u16
+                );
+
+                self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
             },
             Instruction::AndAR8(r8) => {
+                let a = self.registers.af.hi();
+                let value = self.get_r8(&r8);
+
+                let result = a & value;
+
+                self.registers.af.set_hi(result);
+                self.registers.af.set_zero(result == 0);
+                self.registers.af.set_subtract(false);
+                self.registers.af.set_half_carry(true);
+                self.registers.af.set_carry(false);
+
+                self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
             },
             Instruction::XorAR8(r8) => {
+                let a = self.registers.af.hi();
+                let value = self.get_r8(&r8);
+
+                let result = a ^ value;
+
+                self.registers.af.set_hi(result);
+                self.registers.af.set_zero(result == 0);
+                self.registers.af.set_subtract(false);
+                self.registers.af.set_half_carry(false);
+                self.registers.af.set_carry(false);
+
+                self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
             },
             Instruction::OrAR8(r8) => {
+                let a = self.registers.af.hi();
+                let value = self.get_r8(&r8);
+
+                let result = a | value;
+
+                self.registers.af.set_hi(result);
+                self.registers.af.set_zero(result == 0);
+                self.registers.af.set_subtract(false);
+                self.registers.af.set_half_carry(false);
+                self.registers.af.set_carry(false);
+
+                self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
             },
             Instruction::CpAR8(r8) => {
+                let a = self.registers.af.hi();
+                let value = self.get_r8(&r8);
+
+                let result = a.wrapping_sub(value);
+
+                self.registers.af.set_zero(result == 0);
+                self.registers.af.set_subtract(true);
+                self.registers.af.set_half_carry((a & 0x0F) < (value & 0x0F));
+                self.registers.af.set_carry(a < value);
+
+                self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
             },
 
 
-
+            // TODO: start implementing block 3
             Instruction::AddAImm8 => {
                 8
             },
@@ -484,6 +552,38 @@ impl Emulator {
             Instruction::SetB3R8(u8, r8) => {
                 if r8 == R8::HLIndirect { 16 } else { 8 }
             },
+        }
+    }
+
+    fn get_r8(&self, r8: &R8) -> u8 {
+        match r8 {
+            R8::B => self.registers.bc.hi(),
+            R8::C => self.registers.bc.lo(),
+            R8::D => self.registers.de.hi(),
+            R8::E => self.registers.de.lo(),
+            R8::H => self.registers.hl.hi(),
+            R8::L => self.registers.hl.lo(),
+            R8::A => self.registers.af.hi(),
+            R8::HLIndirect => {
+                let addr = self.registers.hl.get();
+                self.memory.get(addr)
+            }
+        }
+    }
+
+    fn set_r8(&mut self, r8: &R8, value: u8) {
+        match r8 {
+            R8::B => self.registers.bc.set_hi(value),
+            R8::C => self.registers.bc.set_lo(value),
+            R8::D => self.registers.de.set_hi(value),
+            R8::E => self.registers.de.set_lo(value),
+            R8::H => self.registers.hl.set_hi(value),
+            R8::L => self.registers.hl.set_lo(value),
+            R8::A => self.registers.af.set_hi(value),
+            R8::HLIndirect => {
+                let addr = self.registers.hl.get();
+                self.memory.set(addr, value);
+            }
         }
     }
 
