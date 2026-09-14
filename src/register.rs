@@ -3,6 +3,7 @@ const FLAG_SUBTRACT: u8 = 0b0100_0000;
 const FLAG_HALF_CARRY: u8 = 0b0010_0000;
 const FLAG_CARRY: u8 = 0b0001_0000;
 
+#[derive(Copy, Clone)]
 pub struct Register16(u16);
 
 impl Register16 {
@@ -34,32 +35,56 @@ impl Register16 {
         self.0 = (self.0 & 0xFF00) | (value as u16);
     }
 
+    pub fn inc(&mut self) {
+        self.0 = self.0.wrapping_add(1);
+    }
+
+    pub fn inc_hi(&mut self) {
+        self.set_hi(self.hi().wrapping_add(1));
+    }
+
+    pub fn inc_lo(&mut self) {
+        self.set_lo(self.lo().wrapping_add(1));
+    }
+
+    pub fn dec(&mut self) {
+        self.0 = self.0.wrapping_sub(1);
+    }
+
+    pub fn dec_hi(&mut self) {
+        self.set_hi(self.hi().wrapping_sub(1));
+    }
+
+    pub fn dec_lo(&mut self) {
+        self.set_lo(self.lo().wrapping_sub(1));
+    }
+
     pub fn zero(&self) -> bool {
-        self.lo() & 0b1000_0000 != 0
+        self.lo() & FLAG_ZERO != 0
     }
     pub fn set_zero(&mut self, v: bool) {
-        self.set_flag_bit(0b1000_0000, v)
+        self.set_flag_bit(FLAG_ZERO, v)
     }
 
     pub fn subtract(&self) -> bool {
-        self.lo() & 0b0100_0000 != 0
+        self.lo() & FLAG_SUBTRACT != 0
     }
     pub fn set_subtract(&mut self, v: bool) {
-        self.set_flag_bit(0b0100_0000, v)
+        self.set_flag_bit(FLAG_SUBTRACT, v)
     }
 
     pub fn half_carry(&self) -> bool {
-        self.lo() & 0b0010_0000 != 0
+        self.lo() & FLAG_HALF_CARRY != 0
     }
     pub fn set_half_carry(&mut self, v: bool) {
-        self.set_flag_bit(0b0010_0000, v)
+        self.set_flag_bit(FLAG_HALF_CARRY, v)
     }
 
     pub fn carry(&self) -> bool {
-        self.lo() & 0b0001_0000 != 0
+        self.lo() & FLAG_CARRY != 0
     }
     pub fn set_carry(&mut self, v: bool) {
-        self.set_flag_bit(0b0001_0000, v)
+        self.set_flag_bit(FLAG_CARRY, v)
     }
 
     fn set_flag_bit(&mut self, mask: u8, value: bool) {
@@ -74,16 +99,16 @@ impl Register16 {
     pub fn set_flags(&mut self, z: bool, n: bool, h: bool, c: bool) {
         let mut f = 0u8;
         if z {
-            f |= 0b1000_0000;
+            f |= FLAG_ZERO;
         }
         if n {
-            f |= 0b0100_0000;
+            f |= FLAG_SUBTRACT;
         }
         if h {
-            f |= 0b0010_0000;
+            f |= FLAG_HALF_CARRY;
         }
         if c {
-            f |= 0b0001_0000;
+            f |= FLAG_CARRY;
         }
         self.set_lo(f);
     }
@@ -100,10 +125,10 @@ impl Flags {
     pub fn from_af(af: &Register16) -> Self {
         let bits = af.lo();
         Flags {
-            zero: bits & 0b1000_0000 == 0b1000_0000,
-            subtract: bits & 0b0100_0000 == 0b0100_0000,
-            half_carry: bits & 0b0010_0000 == 0b0010_0000,
-            carry: bits & 0b0001_0000 == 0b0001_0000,
+            zero: bits & FLAG_ZERO == FLAG_ZERO,
+            subtract: bits & FLAG_SUBTRACT == FLAG_SUBTRACT,
+            half_carry: bits & FLAG_HALF_CARRY == FLAG_HALF_CARRY,
+            carry: bits & FLAG_CARRY == FLAG_CARRY,
         }
     }
 }

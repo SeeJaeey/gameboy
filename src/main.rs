@@ -1,4 +1,4 @@
-mod cpu;
+mod register;
 mod decode;
 mod emulator;
 mod memory;
