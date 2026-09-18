@@ -1,4 +1,4 @@
-pub struct Memory (pub [u8; 65536]);
+pub struct Memory ([u8; 65536]);
 
 impl Memory {
     pub fn new () -> Self {

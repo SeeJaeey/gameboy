@@ -239,7 +239,9 @@ pub enum Instruction {
     // 2
     Di,
     Ei,
+}
 
+pub enum CbInstruction {
     ////////////////
     // $CB prefix // --> 256 instructions
     ////////////////
@@ -360,21 +362,21 @@ pub fn decode(opcode: u8) -> Instruction {
     }
 }
 
-pub fn decode_cb_prefix(opcode: u8) -> Instruction {
+pub fn decode_cb_prefix(opcode: u8) -> CbInstruction {
     let b3 = (opcode & 0b0011_1000) >> 3; // TODO: divide by 8 or not?
 
     match opcode {
-        0x00..=0x07 => Instruction::RlcR8(R8::src_from_opcode(opcode)),
-        0x08..=0x0F => Instruction::RrcR8(R8::src_from_opcode(opcode)),
-        0x10..=0x17 => Instruction::RlR8(R8::src_from_opcode(opcode)),
-        0x18..=0x1F => Instruction::RrR8(R8::src_from_opcode(opcode)),
-        0x20..=0x27 => Instruction::SlaR8(R8::src_from_opcode(opcode)),
-        0x28..=0x2F => Instruction::SraR8(R8::src_from_opcode(opcode)),
-        0x30..=0x37 => Instruction::SwapR8(R8::src_from_opcode(opcode)),
-        0x38..=0x3F => Instruction::SrlR8(R8::src_from_opcode(opcode)),
+        0x00..=0x07 => CbInstruction::RlcR8(R8::src_from_opcode(opcode)),
+        0x08..=0x0F => CbInstruction::RrcR8(R8::src_from_opcode(opcode)),
+        0x10..=0x17 => CbInstruction::RlR8(R8::src_from_opcode(opcode)),
+        0x18..=0x1F => CbInstruction::RrR8(R8::src_from_opcode(opcode)),
+        0x20..=0x27 => CbInstruction::SlaR8(R8::src_from_opcode(opcode)),
+        0x28..=0x2F => CbInstruction::SraR8(R8::src_from_opcode(opcode)),
+        0x30..=0x37 => CbInstruction::SwapR8(R8::src_from_opcode(opcode)),
+        0x38..=0x3F => CbInstruction::SrlR8(R8::src_from_opcode(opcode)),
 
-        0x40..=0x7F => Instruction::BitB3R8(b3, R8::src_from_opcode(opcode)),
-        0x80..=0xBF => Instruction::ResB3R8(b3, R8::src_from_opcode(opcode)),
-        0xC0..=0xFF => Instruction::SetB3R8(b3, R8::src_from_opcode(opcode)),
+        0x40..=0x7F => CbInstruction::BitB3R8(b3, R8::src_from_opcode(opcode)),
+        0x80..=0xBF => CbInstruction::ResB3R8(b3, R8::src_from_opcode(opcode)),
+        0xC0..=0xFF => CbInstruction::SetB3R8(b3, R8::src_from_opcode(opcode)),
     }
 }
