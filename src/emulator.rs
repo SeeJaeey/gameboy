@@ -1,6 +1,8 @@
-use crate::register::{Registers, Register16};
-use crate::decode::{Instruction, CbInstruction, R8, R16, R16Mem, R16Stk, Cond, decode, decode_cb_prefix};
+use crate::decode::{
+    CbInstruction, Cond, Instruction, R8, R16, R16Mem, R16Stk, decode, decode_cb_prefix,
+};
 use crate::memory::Memory;
+use crate::register::{Register16, Registers};
 
 pub struct Emulator {
     pub registers: Registers,
@@ -10,7 +12,10 @@ pub struct Emulator {
 // TODO: look for test suites (maybe JSON tests) and integrate them using github actions
 impl Emulator {
     pub fn new() -> Self {
-        Emulator { registers: Registers::new(), memory: Memory::new() }
+        Emulator {
+            registers: Registers::new(),
+            memory: Memory::new(),
+        }
     }
 
     pub fn step(&mut self) {
@@ -20,7 +25,7 @@ impl Emulator {
 
         self.execute(instruction);
     }
-    
+
     // Execute an instruction and return the number of cycles it takes
     fn execute(&mut self, instruction: Instruction) -> u8 {
         match instruction {
@@ -36,7 +41,7 @@ impl Emulator {
 
                 self.inc_pc(3);
                 12
-            },
+            }
             Instruction::LdR16memA(r16mem) => {
                 let a = self.registers.af.hi();
                 let r16mem_val = self.get_r16mem_val(r16mem);
@@ -45,7 +50,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 8
-            },
+            }
             Instruction::LdAR16mem(r16mem) => {
                 let r16mem_val = self.get_r16mem_val(r16mem);
                 let a_new = self.memory.get(r16mem_val);
@@ -54,7 +59,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 8
-            },
+            }
             Instruction::LdImm16Sp => {
                 let imm16 = self.fetch_imm16();
                 let sp_hi = self.registers.sp.hi();
@@ -65,7 +70,7 @@ impl Emulator {
 
                 self.inc_pc(3);
                 20
-            },
+            }
 
             Instruction::IncR16(r16) => {
                 let r16 = self.get_r16_mut(r16);
@@ -73,14 +78,14 @@ impl Emulator {
 
                 self.inc_pc(1);
                 8
-            },
+            }
             Instruction::DecR16(r16) => {
                 let r16 = self.get_r16_mut(r16);
                 r16.dec();
 
                 self.inc_pc(1);
                 8
-            },
+            }
             Instruction::AddHlR16(r16) => {
                 let r16 = self.get_r16(r16).get();
                 let hl = self.registers.hl.get();
@@ -96,7 +101,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 8
-            },
+            }
 
             Instruction::IncR8(r8) => {
                 let old = self.get_r8(&r8);
@@ -109,7 +114,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 if r8 == R8::HLIndirect { 12 } else { 4 }
-            },
+            }
             Instruction::DecR8(r8) => {
                 let old = self.get_r8(&r8);
                 let new = old.wrapping_sub(1);
@@ -121,7 +126,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 if r8 == R8::HLIndirect { 12 } else { 4 }
-            },
+            }
 
             Instruction::LdR8Imm8(r8) => {
                 let imm8 = self.fetch_imm8();
@@ -129,7 +134,7 @@ impl Emulator {
 
                 self.inc_pc(2);
                 if r8 == R8::HLIndirect { 12 } else { 8 }
-            },
+            }
 
             Instruction::Rlca => {
                 let a = self.registers.af.hi();
@@ -141,7 +146,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 4
-            },
+            }
             Instruction::Rrca => {
                 let a = self.registers.af.hi();
                 let bit0 = a & 1;
@@ -152,7 +157,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 4
-            },
+            }
             Instruction::Rla => {
                 let a = self.registers.af.hi();
                 let bit7 = a >> 7 & 1;
@@ -163,7 +168,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 4
-            },
+            }
             Instruction::Rra => {
                 let a = self.registers.af.hi();
                 let bit0 = a & 1;
@@ -174,7 +179,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 4
-            },
+            }
             Instruction::Daa => {
                 let mut a = self.registers.af.hi();
                 let subtract = self.registers.af.subtract();
@@ -205,7 +210,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 4
-            },
+            }
             Instruction::Cpl => {
                 let a = self.registers.af.hi();
                 self.registers.af.set_hi(!a);
@@ -215,7 +220,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 4
-            },
+            }
             Instruction::Scf => {
                 self.registers.af.set_carry(true);
                 self.registers.af.set_subtract(false);
@@ -223,7 +228,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 4
-            },
+            }
             Instruction::Ccf => {
                 let c = self.registers.af.carry();
                 self.registers.af.set_carry(!c);
@@ -232,7 +237,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 4
-            },
+            }
 
             Instruction::JrImm8 => {
                 let imm8 = self.fetch_imm8() as i8;
@@ -241,7 +246,7 @@ impl Emulator {
                 let new_pc = self.registers.pc.get().wrapping_add_signed(imm8 as i16);
                 self.registers.pc.set(new_pc);
                 12
-            },
+            }
             Instruction::JrCondImm8(cond) => {
                 let imm8 = self.fetch_imm8() as i8;
                 self.inc_pc(2);
@@ -253,28 +258,28 @@ impl Emulator {
                 } else {
                     8
                 }
-            },
+            }
 
             Instruction::Stop => {
                 // TODO
                 4
             }
 
-
-
             Instruction::LdR8R8(lr8, rr8) => {
                 let value = self.get_r8(&rr8);
                 self.set_r8(&lr8, value);
 
                 self.inc_pc(1);
-                if lr8 == R8::HLIndirect || rr8 == R8::HLIndirect { 8 } else { 4 }
-            },
+                if lr8 == R8::HLIndirect || rr8 == R8::HLIndirect {
+                    8
+                } else {
+                    4
+                }
+            }
             Instruction::Halt => {
                 // TODO
                 4
-            },
-
-
+            }
 
             Instruction::AddAR8(r8) => {
                 let a = self.registers.af.hi();
@@ -283,13 +288,15 @@ impl Emulator {
                 let result = a.wrapping_add(value);
                 let half_carry = ((a & 0x0F) + (value & 0x0F)) > 0x0F;
                 let carry = a as u16 + value as u16 > 0xFF;
-                
+
                 self.registers.af.set_hi(result);
-                self.registers.af.set_flags(result == 0, false, half_carry, carry);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, half_carry, carry);
 
                 self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
-            },
+            }
             Instruction::AdcAR8(r8) => {
                 let a = self.registers.af.hi();
                 let value = self.get_r8(&r8);
@@ -298,26 +305,30 @@ impl Emulator {
                 let result = a.wrapping_add(value).wrapping_add(carry);
                 let half_carry = (a & 0x0F) + (value & 0x0F) + carry > 0x0F;
                 let carry = a as u16 + value as u16 + carry as u16 > 0xFF;
-                
+
                 self.registers.af.set_hi(result);
-                self.registers.af.set_flags(result == 0, false, half_carry, carry);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, half_carry, carry);
 
                 self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
-            },
+            }
             Instruction::SubAR8(r8) => {
                 let a = self.registers.af.hi();
                 let value = self.get_r8(&r8);
 
                 let result = a.wrapping_sub(value);
                 let half_carry = (a & 0x0F) < (value & 0x0F);
-                
+
                 self.registers.af.set_hi(result);
-                self.registers.af.set_flags(result == 0, true, half_carry, a < value);
+                self.registers
+                    .af
+                    .set_flags(result == 0, true, half_carry, a < value);
 
                 self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
-            },
+            }
             Instruction::SbcAR8(r8) => {
                 let a = self.registers.af.hi();
                 let value = self.get_r8(&r8);
@@ -326,13 +337,15 @@ impl Emulator {
                 let result = a.wrapping_sub(value).wrapping_sub(carry_u8);
                 let half_carry = (a & 0x0F) < (value & 0x0F) + carry_u8;
                 let carry = (a as u16) < (value as u16) + carry_u8 as u16;
-                
+
                 self.registers.af.set_hi(result);
-                self.registers.af.set_flags(result == 0, true, half_carry, carry);
+                self.registers
+                    .af
+                    .set_flags(result == 0, true, half_carry, carry);
 
                 self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
-            },
+            }
             Instruction::AndAR8(r8) => {
                 let a = self.registers.af.hi();
                 let value = self.get_r8(&r8);
@@ -344,7 +357,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
-            },
+            }
             Instruction::XorAR8(r8) => {
                 let a = self.registers.af.hi();
                 let value = self.get_r8(&r8);
@@ -352,11 +365,13 @@ impl Emulator {
                 let result = a ^ value;
 
                 self.registers.af.set_hi(result);
-                self.registers.af.set_flags(result == 0, false, false, false);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, false, false);
 
                 self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
-            },
+            }
             Instruction::OrAR8(r8) => {
                 let a = self.registers.af.hi();
                 let value = self.get_r8(&r8);
@@ -364,11 +379,13 @@ impl Emulator {
                 let result = a | value;
 
                 self.registers.af.set_hi(result);
-                self.registers.af.set_flags(result == 0, false, false, false);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, false, false);
 
                 self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
-            },
+            }
             Instruction::CpAR8(r8) => {
                 let a = self.registers.af.hi();
                 let value = self.get_r8(&r8);
@@ -376,13 +393,13 @@ impl Emulator {
                 let result = a.wrapping_sub(value);
                 let half_carry = (a & 0x0F) < (value & 0x0F);
 
-                self.registers.af.set_flags(result == 0, true, half_carry, a < value);
+                self.registers
+                    .af
+                    .set_flags(result == 0, true, half_carry, a < value);
 
                 self.inc_pc(1);
                 if r8 == R8::HLIndirect { 8 } else { 4 }
-            },
-
-
+            }
 
             Instruction::AddAImm8 => {
                 let a = self.registers.af.hi();
@@ -392,13 +409,15 @@ impl Emulator {
 
                 let half_carry = (a & 0x0F) + (value & 0x0F) > 0x0F;
                 let carry = (a as u16 + value as u16) > 0xFF;
-                
+
                 self.registers.af.set_hi(result);
-                self.registers.af.set_flags(result == 0, false, half_carry, carry);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, half_carry, carry);
 
                 self.inc_pc(2);
                 8
-            },
+            }
             Instruction::AdcAImm8 => {
                 let a = self.registers.af.hi();
                 let value = self.fetch_imm8();
@@ -409,24 +428,28 @@ impl Emulator {
                 let carry = (a as u16 + value as u16 + carry as u16) > 0xFF;
 
                 self.registers.af.set_hi(result);
-                self.registers.af.set_flags(result == 0, false, half_carry, carry);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, half_carry, carry);
 
                 self.inc_pc(2);
                 8
-            },
+            }
             Instruction::SubAImm8 => {
                 let a = self.registers.af.hi();
                 let value = self.fetch_imm8();
 
                 let result = a.wrapping_sub(value);
                 let half_carry = (a & 0x0F) < (value & 0x0F);
-                
+
                 self.registers.af.set_hi(result);
-                self.registers.af.set_flags(result == 0, true, half_carry, a < value);
+                self.registers
+                    .af
+                    .set_flags(result == 0, true, half_carry, a < value);
 
                 self.inc_pc(2);
                 8
-            },
+            }
             Instruction::SbcAImm8 => {
                 let a = self.registers.af.hi();
                 let value = self.fetch_imm8();
@@ -435,13 +458,15 @@ impl Emulator {
                 let result = a.wrapping_sub(value).wrapping_sub(carry);
                 let half_carry = (a & 0x0F) < (value & 0x0F) + carry;
                 let carry = (a as u16) < (value as u16 + carry as u16);
-                
+
                 self.registers.af.set_hi(result);
-                self.registers.af.set_flags(result == 0, true, half_carry, carry);
+                self.registers
+                    .af
+                    .set_flags(result == 0, true, half_carry, carry);
 
                 self.inc_pc(2);
                 8
-            },
+            }
             Instruction::AndAImm8 => {
                 let a = self.registers.af.hi();
                 let value = self.fetch_imm8();
@@ -453,7 +478,7 @@ impl Emulator {
 
                 self.inc_pc(2);
                 8
-            },
+            }
             Instruction::XorAImm8 => {
                 let a = self.registers.af.hi();
                 let value = self.fetch_imm8();
@@ -461,11 +486,13 @@ impl Emulator {
                 let result = a ^ value;
 
                 self.registers.af.set_hi(result);
-                self.registers.af.set_flags(result == 0, false, false, false);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, false, false);
 
                 self.inc_pc(2);
                 8
-            },
+            }
             Instruction::OrAImm8 => {
                 let a = self.registers.af.hi();
                 let value = self.fetch_imm8();
@@ -473,11 +500,13 @@ impl Emulator {
                 let result = a | value;
 
                 self.registers.af.set_hi(result);
-                self.registers.af.set_flags(result == 0, false, false, false);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, false, false);
 
                 self.inc_pc(2);
                 8
-            },
+            }
             Instruction::CpAImm8 => {
                 let a = self.registers.af.hi();
                 let value = self.fetch_imm8();
@@ -485,11 +514,13 @@ impl Emulator {
                 let result = a.wrapping_sub(value);
                 let half_carry = (a & 0x0F) < (value & 0x0F);
 
-                self.registers.af.set_flags(result == 0, true, half_carry, a < value);
+                self.registers
+                    .af
+                    .set_flags(result == 0, true, half_carry, a < value);
 
                 self.inc_pc(2);
                 8
-            },
+            }
 
             Instruction::RetCond(cond) => {
                 if self.check_condition(cond) {
@@ -500,12 +531,12 @@ impl Emulator {
                     self.inc_pc(1);
                     8
                 }
-            },
+            }
             Instruction::Ret => {
                 let new_pc = self.pop_u16();
                 self.registers.pc.set(new_pc);
                 16
-            },
+            }
             Instruction::Reti => {
                 let new_pc = self.pop_u16();
                 self.registers.pc.set(new_pc);
@@ -513,7 +544,7 @@ impl Emulator {
                 // TODO: activate interrupts
 
                 16
-            },
+            }
             Instruction::JpCondImm16(cond) => {
                 let address = self.fetch_imm16();
 
@@ -524,16 +555,16 @@ impl Emulator {
                     self.inc_pc(3);
                     12
                 }
-            },
+            }
             Instruction::JpImm16 => {
                 let address = self.fetch_imm16();
                 self.registers.pc.set(address);
                 16
-            },
+            }
             Instruction::JpHl => {
                 self.registers.pc.set(self.registers.hl.get());
                 4
-            },
+            }
             Instruction::CallCondImm16(cond) => {
                 let address = self.fetch_imm16();
 
@@ -547,7 +578,7 @@ impl Emulator {
                     self.inc_pc(3);
                     12
                 }
-            },
+            }
             Instruction::CallImm16 => {
                 let address = self.fetch_imm16();
 
@@ -556,14 +587,14 @@ impl Emulator {
                 self.registers.pc.set(address);
 
                 24
-            },
+            }
             Instruction::RstTgt3(target) => {
                 self.inc_pc(1);
                 self.push_u16(self.registers.pc.get());
                 self.registers.pc.set(target as u16);
 
                 16
-            },
+            }
 
             Instruction::PopR16stk(r16stk) => {
                 let value = self.pop_u16();
@@ -577,7 +608,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 12
-            },
+            }
             Instruction::PushR16stk(r16stk) => {
                 let value = match r16stk {
                     R16Stk::Bc => self.registers.bc.get(),
@@ -590,14 +621,14 @@ impl Emulator {
 
                 self.inc_pc(1);
                 16
-            },
+            }
 
             Instruction::Prefix => {
                 let opcode = self.fetch_imm8();
                 let instruction = decode_cb_prefix(opcode);
                 self.inc_pc(2);
                 self.execute_cb(instruction)
-            },
+            }
 
             Instruction::LdhCA => {
                 let c = self.registers.bc.lo();
@@ -608,7 +639,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 8
-            },
+            }
             Instruction::LdhImm8A => {
                 let offset = self.fetch_imm8();
                 let addr = 0xFF00 + offset as u16;
@@ -618,7 +649,7 @@ impl Emulator {
 
                 self.inc_pc(2);
                 12
-            },
+            }
             Instruction::LdImm16A => {
                 let addr = self.fetch_imm16();
                 let a = self.registers.af.hi();
@@ -627,7 +658,7 @@ impl Emulator {
 
                 self.inc_pc(3);
                 16
-            },
+            }
             Instruction::LdhAC => {
                 let c = self.registers.bc.lo();
                 let addr = 0xFF00 + c as u16;
@@ -637,7 +668,7 @@ impl Emulator {
 
                 self.inc_pc(1);
                 8
-            },
+            }
             Instruction::LdhAImm8 => {
                 let offset = self.fetch_imm8();
                 let addr = 0xFF00 + offset as u16;
@@ -647,7 +678,7 @@ impl Emulator {
 
                 self.inc_pc(2);
                 12
-            },
+            }
             Instruction::LdAImm16 => {
                 let addr = self.fetch_imm16();
                 let value = self.memory.get(addr);
@@ -656,7 +687,7 @@ impl Emulator {
 
                 self.inc_pc(3);
                 16
-            },
+            }
 
             Instruction::AddSpImm8 => {
                 let sp = self.registers.sp.get();
@@ -673,7 +704,7 @@ impl Emulator {
 
                 self.inc_pc(2);
                 16
-            },
+            }
             Instruction::LdHlSpPlusImm8 => {
                 let sp = self.registers.sp.get();
                 let imm8_u = self.fetch_imm8();
@@ -689,23 +720,23 @@ impl Emulator {
 
                 self.inc_pc(2);
                 12
-            },
+            }
             Instruction::LdSpHl => {
                 let hl = self.registers.hl.get();
                 self.registers.sp.set(hl);
 
                 self.inc_pc(1);
                 8
-            },
+            }
 
             Instruction::Di => {
                 // TODO: disabled interrupts
                 4
-            },
+            }
             Instruction::Ei => {
                 // TODO: enable interrupts
                 4
-            },
+            }
         }
     }
 
@@ -717,20 +748,24 @@ impl Emulator {
                 let result = (value << 1) | bit7;
 
                 self.set_r8(&r8, result);
-                self.registers.af.set_flags(result == 0, false, false, bit7 != 0);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, false, bit7 != 0);
 
                 if r8 == R8::HLIndirect { 16 } else { 8 }
-            },
+            }
             CbInstruction::RrcR8(r8) => {
                 let value = self.get_r8(&r8);
                 let bit0 = value & 1;
                 let result = (value >> 1) | (bit0 << 7);
 
                 self.set_r8(&r8, result);
-                self.registers.af.set_flags(result == 0, false, false, bit0 != 0);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, false, bit0 != 0);
 
                 if r8 == R8::HLIndirect { 16 } else { 8 }
-            },
+            }
             CbInstruction::RlR8(r8) => {
                 let value = self.get_r8(&r8);
                 let bit7 = (value >> 7) & 1;
@@ -738,10 +773,12 @@ impl Emulator {
                 let result = (value << 1) | old_carry;
 
                 self.set_r8(&r8, result);
-                self.registers.af.set_flags(result == 0, false, false, bit7 != 0);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, false, bit7 != 0);
 
                 if r8 == R8::HLIndirect { 16 } else { 8 }
-            },
+            }
             CbInstruction::RrR8(r8) => {
                 let value = self.get_r8(&r8);
                 let bit0 = value & 1;
@@ -749,20 +786,24 @@ impl Emulator {
                 let result = (value >> 1) | (old_carry << 7);
 
                 self.set_r8(&r8, result);
-                self.registers.af.set_flags(result == 0, false, false, bit0 != 0);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, false, bit0 != 0);
 
                 if r8 == R8::HLIndirect { 16 } else { 8 }
-            },
+            }
             CbInstruction::SlaR8(r8) => {
                 let value = self.get_r8(&r8);
                 let bit7 = (value >> 7) & 1;
                 let result = value << 1;
 
                 self.set_r8(&r8, result);
-                self.registers.af.set_flags(result == 0, false, false, bit7 != 0);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, false, bit7 != 0);
 
                 if r8 == R8::HLIndirect { 16 } else { 8 }
-            },
+            }
             CbInstruction::SraR8(r8) => {
                 let value = self.get_r8(&r8);
                 let bit0 = value & 1;
@@ -770,30 +811,36 @@ impl Emulator {
                 let result = (value >> 1) | sign_bit;
 
                 self.set_r8(&r8, result);
-                self.registers.af.set_flags(result == 0, false, false, bit0 != 0);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, false, bit0 != 0);
 
                 if r8 == R8::HLIndirect { 16 } else { 8 }
-            },
+            }
             CbInstruction::SwapR8(r8) => {
                 let value = self.get_r8(&r8);
                 let result = (value << 4) | (value >> 4);
 
                 self.set_r8(&r8, result);
-                self.registers.af.set_flags(result == 0, false, false, false);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, false, false);
 
                 if r8 == R8::HLIndirect { 16 } else { 8 }
-            },
+            }
             CbInstruction::SrlR8(r8) => {
                 let value = self.get_r8(&r8);
                 let bit0 = value & 1;
                 let result = value >> 1;
 
                 self.set_r8(&r8, result);
-                self.registers.af.set_flags(result == 0, false, false, bit0 != 0);
+                self.registers
+                    .af
+                    .set_flags(result == 0, false, false, bit0 != 0);
 
                 if r8 == R8::HLIndirect { 16 } else { 8 }
-            },
-            
+            }
+
             CbInstruction::BitB3R8(bit, r8) => {
                 let value = self.get_r8(&r8);
                 let is_set = (value >> bit) & 1 != 0;
@@ -803,7 +850,7 @@ impl Emulator {
                 self.registers.af.set_half_carry(true);
 
                 if r8 == R8::HLIndirect { 12 } else { 8 }
-            },
+            }
             CbInstruction::ResB3R8(bit, r8) => {
                 let value = self.get_r8(&r8);
                 let result = value & !(1 << bit);
@@ -811,7 +858,7 @@ impl Emulator {
                 self.set_r8(&r8, result);
 
                 if r8 == R8::HLIndirect { 16 } else { 8 }
-            },
+            }
             CbInstruction::SetB3R8(bit, r8) => {
                 let value = self.get_r8(&r8);
                 let result = value | (1 << bit);
@@ -819,7 +866,7 @@ impl Emulator {
                 self.set_r8(&r8, result);
 
                 if r8 == R8::HLIndirect { 16 } else { 8 }
-            },
+            }
         }
     }
 
@@ -891,7 +938,9 @@ impl Emulator {
     }
 
     fn inc_pc(&mut self, value: u16) {
-        self.registers.pc.set(self.registers.pc.get().wrapping_add(value));
+        self.registers
+            .pc
+            .set(self.registers.pc.get().wrapping_add(value));
     }
 
     fn fetch_imm8(&self) -> u8 {

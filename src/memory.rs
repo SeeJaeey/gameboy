@@ -1,8 +1,8 @@
-pub struct Memory ([u8; 65536]);
+pub struct Memory([u8; 65536]);
 
 impl Memory {
-    pub fn new () -> Self {
-        Memory ([0; 65536])
+    pub fn new() -> Self {
+        Memory([0; 65536])
     }
 
     pub fn get(&self, addr: u16) -> u8 {

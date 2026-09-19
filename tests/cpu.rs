@@ -1,7 +1,6 @@
-
-use std::fs::File;
 use gameboy::emulator::Emulator;
-use serde::{Deserialize};
+use serde::Deserialize;
+use std::fs::File;
 
 #[derive(Deserialize)]
 struct CpuTest {
@@ -39,10 +38,22 @@ fn run_test(test: &CpuTest) -> Result<(), String> {
 }
 
 fn apply_initial_state(emulator: &mut Emulator, state: &CpuState) {
-    emulator.registers.af.set(((state.a as u16) << 8) | (state.f as u16));
-    emulator.registers.bc.set(((state.b as u16) << 8) | (state.c as u16));
-    emulator.registers.de.set(((state.d as u16) << 8) | (state.e as u16));
-    emulator.registers.hl.set(((state.h as u16) << 8) | (state.l as u16));
+    emulator
+        .registers
+        .af
+        .set(((state.a as u16) << 8) | (state.f as u16));
+    emulator
+        .registers
+        .bc
+        .set(((state.b as u16) << 8) | (state.c as u16));
+    emulator
+        .registers
+        .de
+        .set(((state.d as u16) << 8) | (state.e as u16));
+    emulator
+        .registers
+        .hl
+        .set(((state.h as u16) << 8) | (state.l as u16));
     emulator.registers.pc.set(state.pc.wrapping_sub(1)); // test data assumes fetch already happened
     emulator.registers.sp.set(state.sp);
 
@@ -165,4 +176,3 @@ fn cpu_tests() {
         );
     }
 }
-
