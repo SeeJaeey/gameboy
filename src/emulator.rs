@@ -1,5 +1,5 @@
 use crate::register::{Registers, Register16};
-use crate::decode::{Instruction, CbInstruction, R8, R16, R16Mem, R16Stk, Cond, decode_cb_prefix};
+use crate::decode::{Instruction, CbInstruction, R8, R16, R16Mem, R16Stk, Cond, decode, decode_cb_prefix};
 use crate::memory::Memory;
 
 pub struct Emulator {
@@ -9,8 +9,20 @@ pub struct Emulator {
 
 // TODO: look for test suites (maybe JSON tests) and integrate them using github actions
 impl Emulator {
+    pub fn new() -> Self {
+        Emulator { registers: Registers::new(), memory: Memory::new() }
+    }
+
+    pub fn step(&mut self) {
+        let opcode = self.memory.get(self.registers.pc.get());
+
+        let instruction = decode(opcode);
+
+        self.execute(instruction);
+    }
+    
     // Execute an instruction and return the number of cycles it takes
-    pub fn execute(&mut self, instruction: Instruction) -> u8 {
+    fn execute(&mut self, instruction: Instruction) -> u8 {
         match instruction {
             Instruction::Nop => {
                 self.inc_pc(1);
@@ -164,7 +176,34 @@ impl Emulator {
                 4
             },
             Instruction::Daa => {
-                // TODO
+                let mut a = self.registers.af.hi();
+                let subtract = self.registers.af.subtract();
+                let half_carry = self.registers.af.half_carry();
+                let mut carry = self.registers.af.carry();
+
+                if !subtract {
+                    if carry || a > 0x99 {
+                        a = a.wrapping_add(0x60);
+                        carry = true;
+                    }
+                    if half_carry || (a & 0x0F) > 0x09 {
+                        a = a.wrapping_add(0x06);
+                    }
+                } else {
+                    if carry {
+                        a = a.wrapping_sub(0x60);
+                    }
+                    if half_carry {
+                        a = a.wrapping_sub(0x06);
+                    }
+                }
+
+                self.registers.af.set_hi(a);
+                self.registers.af.set_zero(a == 0);
+                self.registers.af.set_half_carry(false);
+                self.registers.af.set_carry(carry);
+
+                self.inc_pc(1);
                 4
             },
             Instruction::Cpl => {
@@ -670,7 +709,7 @@ impl Emulator {
         }
     }
 
-    pub fn execute_cb(&mut self, instruction: CbInstruction) -> u8 {
+    fn execute_cb(&mut self, instruction: CbInstruction) -> u8 {
         match instruction {
             CbInstruction::RlcR8(r8) => {
                 let value = self.get_r8(&r8);
