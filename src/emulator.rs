@@ -7,23 +7,46 @@ use crate::register::{Register16, Registers};
 pub struct Emulator {
     pub registers: Registers,
     pub memory: Memory,
+    pub ime: bool,
+    pub set_ime: bool,
+    pub halt: bool,
+    pub stop: bool,
 }
 
-// TODO: look for test suites (maybe JSON tests) and integrate them using github actions
 impl Emulator {
     pub fn new() -> Self {
         Emulator {
             registers: Registers::new(),
             memory: Memory::new(),
+            ime: true,
+            set_ime: false,
+            halt: false,
+            stop: false,
         }
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> u8 {
+        let ime_set_before = self.set_ime;
+        
+        let cycles = self.handle_interrupts();
+        if cycles.is_some() {
+            return cycles.unwrap();
+        }
+        
+        if self.halt {
+            return 4;
+        }
+        
         let opcode = self.memory.get(self.registers.pc.get());
-
         let instruction = decode(opcode);
+        let cycles = self.execute(instruction);
 
-        self.execute(instruction);
+        if ime_set_before && self.set_ime {
+            self.set_ime = false;
+            self.ime = true;
+        }
+
+        cycles
     }
 
     // Execute an instruction and return the number of cycles it takes
@@ -277,7 +300,9 @@ impl Emulator {
                 }
             }
             Instruction::Halt => {
-                // TODO
+                self.halt = true;
+
+                self.inc_pc(1);
                 4
             }
 
@@ -524,7 +549,7 @@ impl Emulator {
 
             Instruction::RetCond(cond) => {
                 if self.check_condition(cond) {
-                    let new_pc = self.pop_u16();
+                    let new_pc = self.pop_u16_from_mem();
                     self.registers.pc.set(new_pc);
                     20
                 } else {
@@ -533,16 +558,15 @@ impl Emulator {
                 }
             }
             Instruction::Ret => {
-                let new_pc = self.pop_u16();
+                let new_pc = self.pop_u16_from_mem();
                 self.registers.pc.set(new_pc);
                 16
             }
             Instruction::Reti => {
-                let new_pc = self.pop_u16();
+                self.ime = true;
+
+                let new_pc = self.pop_u16_from_mem();
                 self.registers.pc.set(new_pc);
-
-                // TODO: activate interrupts
-
                 16
             }
             Instruction::JpCondImm16(cond) => {
@@ -570,7 +594,7 @@ impl Emulator {
 
                 if self.check_condition(cond) {
                     self.inc_pc(3);
-                    self.push_u16(self.registers.pc.get());
+                    self.push_u16_to_mem(self.registers.pc.get());
                     self.registers.pc.set(address);
 
                     24
@@ -583,21 +607,21 @@ impl Emulator {
                 let address = self.fetch_imm16();
 
                 self.inc_pc(3);
-                self.push_u16(self.registers.pc.get());
+                self.push_u16_to_mem(self.registers.pc.get());
                 self.registers.pc.set(address);
 
                 24
             }
             Instruction::RstTgt3(target) => {
                 self.inc_pc(1);
-                self.push_u16(self.registers.pc.get());
+                self.push_u16_to_mem(self.registers.pc.get());
                 self.registers.pc.set(target as u16);
 
                 16
             }
 
             Instruction::PopR16stk(r16stk) => {
-                let value = self.pop_u16();
+                let value = self.pop_u16_from_mem();
 
                 match r16stk {
                     R16Stk::Bc => self.registers.bc.set(value),
@@ -617,7 +641,7 @@ impl Emulator {
                     R16Stk::Af => self.registers.af.get(),
                 };
 
-                self.push_u16(value);
+                self.push_u16_to_mem(value);
 
                 self.inc_pc(1);
                 16
@@ -730,11 +754,15 @@ impl Emulator {
             }
 
             Instruction::Di => {
-                // TODO: disabled interrupts
+                self.ime = false;
+
+                self.inc_pc(1);
                 4
             }
             Instruction::Ei => {
-                // TODO: enable interrupts
+                self.set_ime = true;
+
+                self.inc_pc(1);
                 4
             }
         }
@@ -962,7 +990,7 @@ impl Emulator {
         }
     }
 
-    fn push_u16(&mut self, value: u16) {
+    fn push_u16_to_mem(&mut self, value: u16) {
         self.registers.sp.dec();
         self.memory.set(self.registers.sp.get(), (value >> 8) as u8);
 
@@ -970,7 +998,7 @@ impl Emulator {
         self.memory.set(self.registers.sp.get(), value as u8);
     }
 
-    fn pop_u16(&mut self) -> u16 {
+    fn pop_u16_from_mem(&mut self) -> u16 {
         let lo = self.memory.get(self.registers.sp.get()) as u16;
         self.registers.sp.inc();
 
@@ -978,5 +1006,26 @@ impl Emulator {
         self.registers.sp.inc();
 
         (hi << 8) | lo
+    }
+
+    fn handle_interrupts(&mut self) -> Option<u8> {
+        let interrupt = self.memory.get_interrupt();
+        if interrupt.is_none() {
+            return None;
+        }
+        let interrupt = interrupt.unwrap();
+
+        self.halt = false;
+
+        if !self.ime {
+            return None;
+        }
+
+        self.ime = false;
+        self.push_u16_to_mem(self.registers.pc.get());
+        self.registers.pc.set(interrupt.address());
+        self.memory.unset_if(interrupt);
+    
+        Some(20)
     }
 }
