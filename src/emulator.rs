@@ -30,10 +30,13 @@ impl Emulator {
         
         let cycles = self.handle_interrupts();
         if cycles.is_some() {
-            return cycles.unwrap();
+            let cycles = cycles.unwrap();
+            self.memory.tick(cycles);
+            return cycles;
         }
         
         if self.halt {
+            self.memory.tick(4);
             return 4;
         }
         
@@ -46,6 +49,7 @@ impl Emulator {
             self.ime = true;
         }
 
+        self.memory.tick(cycles);    
         cycles
     }
 
@@ -760,7 +764,9 @@ impl Emulator {
                 4
             }
             Instruction::Ei => {
-                self.set_ime = true;
+                if !self.ime {
+                    self.set_ime = true;
+                }
 
                 self.inc_pc(1);
                 4
