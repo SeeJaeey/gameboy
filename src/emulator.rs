@@ -1,3 +1,4 @@
+use crate::cartridge::{Cartridge};
 use crate::decode::{
     CbInstruction, Cond, Instruction, R8, R16, R16Mem, R16Stk, decode, decode_cb_prefix,
 };
@@ -7,6 +8,7 @@ use crate::register::{Register16, Registers};
 pub struct Emulator {
     pub registers: Registers,
     pub memory: Memory,
+
     pub ime: bool,
     pub set_ime: bool,
     pub halt: bool,
@@ -18,6 +20,17 @@ impl Emulator {
         Emulator {
             registers: Registers::new(),
             memory: Memory::new(),
+            ime: true,
+            set_ime: false,
+            halt: false,
+            stop: false,
+        }
+    }
+
+    pub fn new_with_cartridge(cartridge: Cartridge) -> Self {
+        Emulator {
+            registers: Registers::new(),
+            memory: Memory::new_with_cartridge(cartridge),
             ime: true,
             set_ime: false,
             halt: false,
@@ -40,7 +53,7 @@ impl Emulator {
             return 4;
         }
         
-        let opcode = self.memory.get(self.registers.pc.get());
+        let opcode = self.memory.read(self.registers.pc.get());
         let instruction = decode(opcode);
         let cycles = self.execute(instruction);
 
@@ -73,14 +86,14 @@ impl Emulator {
                 let a = self.registers.af.hi();
                 let r16mem_val = self.get_r16mem_val(r16mem);
 
-                self.memory.set(r16mem_val, a);
+                self.memory.write(r16mem_val, a);
 
                 self.inc_pc(1);
                 8
             }
             Instruction::LdAR16mem(r16mem) => {
                 let r16mem_val = self.get_r16mem_val(r16mem);
-                let a_new = self.memory.get(r16mem_val);
+                let a_new = self.memory.read(r16mem_val);
 
                 self.registers.af.set_hi(a_new);
 
@@ -92,8 +105,8 @@ impl Emulator {
                 let sp_hi = self.registers.sp.hi();
                 let sp_lo = self.registers.sp.lo();
 
-                self.memory.set(imm16, sp_lo);
-                self.memory.set(imm16.wrapping_add(1), sp_hi);
+                self.memory.write(imm16, sp_lo);
+                self.memory.write(imm16.wrapping_add(1), sp_hi);
 
                 self.inc_pc(3);
                 20
@@ -288,7 +301,7 @@ impl Emulator {
             }
 
             Instruction::Stop => {
-                // TODO
+                // TODO: also stops internal counter?
                 4
             }
 
@@ -663,7 +676,7 @@ impl Emulator {
                 let addr = 0xFF00 + c as u16;
                 let a = self.registers.af.hi();
 
-                self.memory.set(addr, a);
+                self.memory.write(addr, a);
 
                 self.inc_pc(1);
                 8
@@ -673,7 +686,7 @@ impl Emulator {
                 let addr = 0xFF00 + offset as u16;
                 let a = self.registers.af.hi();
 
-                self.memory.set(addr, a);
+                self.memory.write(addr, a);
 
                 self.inc_pc(2);
                 12
@@ -682,7 +695,7 @@ impl Emulator {
                 let addr = self.fetch_imm16();
                 let a = self.registers.af.hi();
 
-                self.memory.set(addr, a);
+                self.memory.write(addr, a);
 
                 self.inc_pc(3);
                 16
@@ -691,7 +704,7 @@ impl Emulator {
                 let c = self.registers.bc.lo();
                 let addr = 0xFF00 + c as u16;
 
-                let value = self.memory.get(addr);
+                let value = self.memory.read(addr);
                 self.registers.af.set_hi(value);
 
                 self.inc_pc(1);
@@ -701,7 +714,7 @@ impl Emulator {
                 let offset = self.fetch_imm8();
                 let addr = 0xFF00 + offset as u16;
 
-                let value = self.memory.get(addr);
+                let value = self.memory.read(addr);
                 self.registers.af.set_hi(value);
 
                 self.inc_pc(2);
@@ -709,7 +722,7 @@ impl Emulator {
             }
             Instruction::LdAImm16 => {
                 let addr = self.fetch_imm16();
-                let value = self.memory.get(addr);
+                let value = self.memory.read(addr);
 
                 self.registers.af.set_hi(value);
 
@@ -915,7 +928,7 @@ impl Emulator {
             R8::A => self.registers.af.hi(),
             R8::HLIndirect => {
                 let addr = self.registers.hl.get();
-                self.memory.get(addr)
+                self.memory.read(addr)
             }
         }
     }
@@ -931,7 +944,7 @@ impl Emulator {
             R8::A => self.registers.af.set_hi(value),
             R8::HLIndirect => {
                 let addr = self.registers.hl.get();
-                self.memory.set(addr, value);
+                self.memory.write(addr, value);
             }
         }
     }
@@ -978,12 +991,12 @@ impl Emulator {
     }
 
     fn fetch_imm8(&self) -> u8 {
-        self.memory.get(self.registers.pc.get().wrapping_add(1))
+        self.memory.read(self.registers.pc.get().wrapping_add(1))
     }
 
     fn fetch_imm16(&self) -> u16 {
-        let lo = self.memory.get(self.registers.pc.get().wrapping_add(1)) as u16;
-        let hi = self.memory.get(self.registers.pc.get().wrapping_add(2)) as u16;
+        let lo = self.memory.read(self.registers.pc.get().wrapping_add(1)) as u16;
+        let hi = self.memory.read(self.registers.pc.get().wrapping_add(2)) as u16;
         (hi << 8) | lo
     }
 
@@ -998,17 +1011,17 @@ impl Emulator {
 
     fn push_u16_to_mem(&mut self, value: u16) {
         self.registers.sp.dec();
-        self.memory.set(self.registers.sp.get(), (value >> 8) as u8);
+        self.memory.write(self.registers.sp.get(), (value >> 8) as u8);
 
         self.registers.sp.dec();
-        self.memory.set(self.registers.sp.get(), value as u8);
+        self.memory.write(self.registers.sp.get(), value as u8);
     }
 
     fn pop_u16_from_mem(&mut self) -> u16 {
-        let lo = self.memory.get(self.registers.sp.get()) as u16;
+        let lo = self.memory.read(self.registers.sp.get()) as u16;
         self.registers.sp.inc();
 
-        let hi = self.memory.get(self.registers.sp.get()) as u16;
+        let hi = self.memory.read(self.registers.sp.get()) as u16;
         self.registers.sp.inc();
 
         (hi << 8) | lo

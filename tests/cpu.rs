@@ -58,7 +58,7 @@ fn apply_initial_state(emulator: &mut Emulator, state: &CpuState) {
     emulator.registers.sp.set(state.sp);
 
     for (addr, value) in &state.ram {
-        emulator.memory.set(*addr, *value);
+        emulator.memory.write(*addr, *value);
     }
 }
 
@@ -117,7 +117,7 @@ fn assert_final_state(emulator: &Emulator, state: &CpuState) -> Result<(), Strin
     }
 
     for (addr, expected) in &state.ram {
-        let actual = emulator.memory.get(*addr);
+        let actual = emulator.memory.read(*addr);
 
         if actual != *expected {
             errors.push(format!(

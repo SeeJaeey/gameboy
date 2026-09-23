@@ -1,3 +1,5 @@
+use crate::cartridge::Cartridge;
+
 const DIV_ADDR: u16 = 0xFF04;
 const TIMA_ADDR: u16 = 0xFF05;
 const TMA_ADDR: u16 = 0xFF06;
@@ -36,6 +38,7 @@ impl Interrupt {
 pub struct Memory {
     data: [u8; 65536],
     internal_counter: u16,
+    cartridge: Option<Cartridge>,
 }
 
 impl Memory {
@@ -43,15 +46,32 @@ impl Memory {
         Memory {
             data: [0; 65536],
             internal_counter: 0,
+            cartridge: None,
         }
     }
 
-    pub fn get(&self, addr: u16) -> u8 {
-        self.data[addr as usize]
+    pub fn new_with_cartridge(cartridge: Cartridge) -> Self {
+        Memory {
+            data: [0; 65536],
+            internal_counter: 0,
+            cartridge: Some(cartridge),
+        }
     }
 
-    pub fn set(&mut self, addr: u16, value: u8) {
-        if addr == DIV_ADDR {
+    pub fn read(&self, addr: u16) -> u8 {
+        if addr <= 0x7FFF && self.cartridge.is_some() {
+            self.cartridge.as_ref().unwrap().read(addr)
+        } else {
+            self.data[addr as usize]
+        }
+
+    }
+
+    pub fn write(&mut self, addr: u16, value: u8) {
+        if addr <= 0x7FFF && self.cartridge.is_some() {
+            self.cartridge.as_mut().unwrap().write(addr, value);
+        }
+        else if addr == DIV_ADDR {
             self.data[addr as usize] = 0;
             self.internal_counter = 0;
         } else {
@@ -96,7 +116,7 @@ impl Memory {
     }
 
     pub fn tick(&mut self, cycles: u8) {
-        let tac = self.get(TAC_ADDR);
+        let tac = self.read(TAC_ADDR);
         let tima_freq = tac & 0b0000_0011;
         let tima_enabled = tac & 0b0000_0100 != 0;
         let tima_bit_mask = match tima_freq {
@@ -127,10 +147,10 @@ impl Memory {
         }
 
         for _ in 0..tima_increments {
-            let tima_val = self.get(TIMA_ADDR).wrapping_add(1);
+            let tima_val = self.read(TIMA_ADDR).wrapping_add(1);
 
             if tima_val == 0 {
-                self.data[TIMA_ADDR as usize] = self.get(TMA_ADDR);
+                self.data[TIMA_ADDR as usize] = self.read(TMA_ADDR);
                 self.set_if(Interrupt::Timer);
             } else {
                 self.data[TIMA_ADDR as usize] = tima_val;
