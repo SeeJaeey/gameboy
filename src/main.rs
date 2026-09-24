@@ -14,7 +14,24 @@ fn main() {
 
     let cartridge = Cartridge::new(rom_bytes);
 
-    let emulator = Emulator::new_with_cartridge(cartridge);
+    let mut emulator = Emulator::new_with_cartridge(cartridge);
 
-    // TODO: step loop
+    let mut last_pc = emulator.registers.pc.get();
+    let mut same_pc_count = 0;
+
+    loop {
+        emulator.step();
+
+        let pc = emulator.registers.pc.get();
+
+        if pc == last_pc {
+            same_pc_count += 1;
+            if same_pc_count > 100 {
+                break;
+            }
+        } else {
+            same_pc_count = 0;
+        }
+        last_pc = pc;
+    }
 }

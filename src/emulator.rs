@@ -28,8 +28,17 @@ impl Emulator {
     }
 
     pub fn new_with_cartridge(cartridge: Cartridge) -> Self {
+        // TODO: this is only necessary until original gb boot rom sequence is implemented
+        let mut registers = Registers::new();
+        registers.af.set(0x01B0);
+        registers.bc.set(0x0013);
+        registers.de.set(0x00D8);
+        registers.hl.set(0x014D);
+        registers.sp.set(0xFFFE);
+        registers.pc.set(0x0100);
+
         Emulator {
-            registers: Registers::new(),
+            registers,
             memory: Memory::new_with_cartridge(cartridge),
             ime: true,
             set_ime: false,

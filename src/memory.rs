@@ -5,6 +5,9 @@ const TIMA_ADDR: u16 = 0xFF05;
 const TMA_ADDR: u16 = 0xFF06;
 const TAC_ADDR: u16 = 0xFF07;
 
+const SB_ADDR: u16 = 0xFF01;
+const SC_ADDR: u16 = 0xFF02;
+
 pub enum Interrupt {
     VBlank,
     Lcd,
@@ -68,14 +71,21 @@ impl Memory {
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
-        if addr <= 0x7FFF && self.cartridge.is_some() {
-            self.cartridge.as_mut().unwrap().write(addr, value);
-        }
-        else if addr == DIV_ADDR {
-            self.data[addr as usize] = 0;
-            self.internal_counter = 0;
-        } else {
-            self.data[addr as usize] = value
+        match addr {
+            0x0000..=0x7FFF | 0xA000..=0xBFFF if self.cartridge.is_some() => {
+                self.cartridge.as_mut().unwrap().write(addr, value);
+            }
+            SC_ADDR if value & 0x80 != 0 => {
+                print!("{}", self.read(SB_ADDR) as char); // TODO: change this later
+                self.data[SC_ADDR as usize] = value & 0x7F;
+                self.data[SB_ADDR as usize] = 0xFF;
+                self.set_if(Interrupt::Serial);
+            }
+            DIV_ADDR => {
+                self.data[addr as usize] = 0;
+                self.internal_counter = 0;
+            }
+            _ => self.data[addr as usize] = value,
         }
     }
 
