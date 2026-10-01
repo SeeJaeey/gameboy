@@ -3,11 +3,13 @@ use crate::decode::{
     CbInstruction, Cond, Instruction, R8, R16, R16Mem, R16Stk, decode, decode_cb_prefix,
 };
 use crate::memory::Memory;
+use crate::ppu::PixelProcessingUnit;
 use crate::register::{Register16, Registers};
 
 pub struct Emulator {
     pub registers: Registers,
     pub memory: Memory,
+    pub ppu: PixelProcessingUnit,
 
     pub ime: bool,
     pub set_ime: bool,
@@ -20,6 +22,7 @@ impl Emulator {
         Emulator {
             registers: Registers::new(),
             memory: Memory::new(),
+            ppu: PixelProcessingUnit::new(),
             ime: true,
             set_ime: false,
             halt: false,
@@ -40,6 +43,7 @@ impl Emulator {
         Emulator {
             registers,
             memory: Memory::new_with_cartridge(cartridge),
+            ppu: PixelProcessingUnit::new(),
             ime: true,
             set_ime: false,
             halt: false,
@@ -71,7 +75,8 @@ impl Emulator {
             self.ime = true;
         }
 
-        self.memory.tick(cycles);    
+        self.memory.tick(cycles);
+        self.ppu.tick(cycles);
         cycles
     }
 

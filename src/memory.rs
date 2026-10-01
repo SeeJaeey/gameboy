@@ -62,10 +62,15 @@ impl Memory {
     }
 
     pub fn read(&self, addr: u16) -> u8 {
-        if addr <= 0x7FFF && self.cartridge.is_some() {
-            self.cartridge.as_ref().unwrap().read(addr)
-        } else {
-            self.data[addr as usize]
+        match addr {
+            0x0000..=0x7FFF if self.cartridge.is_some() => {
+                self.cartridge.as_ref().unwrap().read(addr)
+            }
+            0x8000..=0x9FFF | 0xFE00..=0xFE9F | 0xFF40..=0xFF4B if self.cartridge.is_some() => {
+                // TODO: call ppu read
+                0
+            }
+            _ => self.data[addr as usize],
         }
 
     }
@@ -75,7 +80,10 @@ impl Memory {
             0x0000..=0x7FFF | 0xA000..=0xBFFF if self.cartridge.is_some() => {
                 self.cartridge.as_mut().unwrap().write(addr, value);
             }
-            SC_ADDR if value & 0x80 != 0 => {
+            0x8000..=0x9FFF | 0xFE00..=0xFE9F | 0xFF40..=0xFF4B if self.cartridge.is_some() => {
+                // TODO: call ppu write
+            }
+            SC_ADDR if value & 0x80 != 0 && self.cartridge.is_some() => {
                 print!("{}", self.read(SB_ADDR) as char); // TODO: change this later
                 self.data[SC_ADDR as usize] = value & 0x7F;
                 self.data[SB_ADDR as usize] = 0xFF;

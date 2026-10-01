@@ -4,3 +4,4 @@ pub mod memory;
 pub mod register;
 pub mod cartridge;
 pub mod mbc;
+pub mod ppu;
