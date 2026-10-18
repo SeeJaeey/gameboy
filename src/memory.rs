@@ -1,4 +1,4 @@
-use crate::cartridge::Cartridge;
+use crate::{cartridge::Cartridge, ppu::PixelProcessingUnit};
 
 const DIV_ADDR: u16 = 0xFF04;
 const TIMA_ADDR: u16 = 0xFF05;
@@ -42,6 +42,8 @@ pub struct Memory {
     data: [u8; 65536],
     internal_counter: u16,
     cartridge: Option<Cartridge>,
+    ppu: PixelProcessingUnit,
+    frame_ready: bool,
 }
 
 impl Memory {
@@ -50,6 +52,8 @@ impl Memory {
             data: [0; 65536],
             internal_counter: 0,
             cartridge: None,
+            ppu: PixelProcessingUnit::new(),
+            frame_ready: false,
         }
     }
 
@@ -58,17 +62,18 @@ impl Memory {
             data: [0; 65536],
             internal_counter: 0,
             cartridge: Some(cartridge),
+            ppu: PixelProcessingUnit::new(),
+            frame_ready: false,
         }
     }
 
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
-            0x0000..=0x7FFF if self.cartridge.is_some() => {
+            0x0000..=0x7FFF | 0xA000..=0xBFFF if self.cartridge.is_some() => {
                 self.cartridge.as_ref().unwrap().read(addr)
             }
-            0x8000..=0x9FFF | 0xFE00..=0xFE9F | 0xFF40..=0xFF4B if self.cartridge.is_some() => {
-                // TODO: call ppu read
-                0
+            0x8000..=0x9FFF | 0xFE00..=0xFE9F | 0xFF40..=0xFF45 | 0xFF47..=0xFF4B if self.cartridge.is_some() => {
+                self.ppu.read(addr)
             }
             _ => self.data[addr as usize],
         }
@@ -80,8 +85,8 @@ impl Memory {
             0x0000..=0x7FFF | 0xA000..=0xBFFF if self.cartridge.is_some() => {
                 self.cartridge.as_mut().unwrap().write(addr, value);
             }
-            0x8000..=0x9FFF | 0xFE00..=0xFE9F | 0xFF40..=0xFF4B if self.cartridge.is_some() => {
-                // TODO: call ppu write
+            0x8000..=0x9FFF | 0xFE00..=0xFE9F | 0xFF40..=0xFF45 | 0xFF47..=0xFF4B if self.cartridge.is_some() => {
+                self.ppu.write(addr, value);
             }
             SC_ADDR if value & 0x80 != 0 && self.cartridge.is_some() => {
                 print!("{}", self.read(SB_ADDR) as char); // TODO: change this later
@@ -133,7 +138,26 @@ impl Memory {
         interrupt_priority.into_iter().find(|interrupt| (ie & interrupt.bit_mask() != 0) && (if_ & interrupt.bit_mask() != 0))
     }
 
+    pub fn take_frame_ready(&mut self) -> bool {
+        std::mem::take(&mut self.frame_ready) // return value and set to false
+    }
+
+    pub fn frame_buffer(&self) -> &[u8] {
+        self.ppu.frame_buffer()
+    }
+
     pub fn tick(&mut self, cycles: u8) {
+        let ppu_info = self.ppu.tick(cycles);
+        if ppu_info.frame_ready {
+            self.frame_ready = true;
+        }
+        if ppu_info.lcd_interrupt {
+            self.set_if(Interrupt::Lcd);
+        }
+        if ppu_info.vblank_interrupt {
+            self.set_if(Interrupt::VBlank);
+        }
+
         let tac = self.read(TAC_ADDR);
         let tima_freq = tac & 0b0000_0011;
         let tima_enabled = tac & 0b0000_0100 != 0;
